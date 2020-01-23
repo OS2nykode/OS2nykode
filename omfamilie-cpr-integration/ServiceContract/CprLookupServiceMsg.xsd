@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:tns="http://serviceplatformen.dk/xml/wsdl/soap11/CprService/2/"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            elementFormDefault="qualified"
+            version="1.0"
+            targetNamespace="http://serviceplatformen.dk/xml/wsdl/soap11/CprService/2/">
+  
+  <xsd:include schemaLocation="CprLookupServiceTypes.xsd"/>
+
+  <xsd:element name="callGCTPCheckServiceRequest"  type="tns:GCTPLookupRequestType" />
+  <xsd:element name="callGCTPCheckServiceResponse" type="tns:GCTPLookupResponseType" />
+
+</xsd:schema>

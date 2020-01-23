@@ -1,0 +1,87 @@
+<xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" targetNamespace="http://www.cpr.dk" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="root">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Gctp">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="System">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="Service">
+                      <xs:complexType>
+                        <xs:sequence>
+                          <xs:element name="CprServiceHeader">
+                            <xs:complexType>
+                              <xs:simpleContent>
+                                <xs:extension base="xs:string">
+                                  <xs:attribute type="xs:string" name="r"/>
+                                </xs:extension>
+                              </xs:simpleContent>
+                            </xs:complexType>
+                          </xs:element>
+                          <xs:element name="CprData">
+                            <xs:complexType>
+                              <xs:sequence>
+                                <xs:element name="Rolle">
+                                  <xs:complexType>
+                                    <xs:sequence>
+                                      <xs:element name="Table">
+                                        <xs:complexType>
+                                          <xs:sequence>
+                                            <xs:element name="Row" maxOccurs="unbounded" minOccurs="0">
+                                              <xs:complexType>
+                                                <xs:sequence>
+                                                  <xs:element name="Field" maxOccurs="unbounded" minOccurs="0">
+                                                    <xs:complexType>
+                                                      <xs:simpleContent>
+                                                        <xs:extension base="xs:string">
+                                                          <xs:attribute type="xs:string" name="r" use="optional"/>
+                                                          <xs:attribute type="xs:string" name="v" use="optional"/>
+                                                        </xs:extension>
+                                                      </xs:simpleContent>
+                                                    </xs:complexType>
+                                                  </xs:element>
+                                                </xs:sequence>
+                                                <xs:attribute type="xs:byte" name="k" use="optional"/>
+                                              </xs:complexType>
+                                            </xs:element>
+                                          </xs:sequence>
+                                          <xs:attribute type="xs:string" name="r"/>
+                                        </xs:complexType>
+                                      </xs:element>
+                                    </xs:sequence>
+                                    <xs:attribute type="xs:string" name="r"/>
+                                  </xs:complexType>
+                                </xs:element>
+                              </xs:sequence>
+                              <xs:attribute type="xs:string" name="u"/>
+                            </xs:complexType>
+                          </xs:element>
+                          <xs:element name="Kvit">
+                            <xs:complexType>
+                              <xs:simpleContent>
+                                <xs:extension base="xs:string">
+                                  <xs:attribute type="xs:string" name="r"/>
+                                  <xs:attribute type="xs:string" name="t"/>
+                                  <xs:attribute type="xs:byte" name="v"/>
+                                </xs:extension>
+                              </xs:simpleContent>
+                            </xs:complexType>
+                          </xs:element>
+                        </xs:sequence>
+                        <xs:attribute type="xs:string" name="r"/>
+                      </xs:complexType>
+                    </xs:element>
+                  </xs:sequence>
+                  <xs:attribute type="xs:string" name="r"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+            <xs:attribute type="xs:float" name="v"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

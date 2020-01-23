@@ -1,0 +1,38 @@
+﻿using System.Collections.Generic;
+using System.Text;
+
+namespace SmsGateway
+{
+    public class Message
+    {
+        public string content { get; set; }
+        public List<string> numbers { get; set; }
+
+        public override string ToString()
+        {
+            StringBuilder builder = new StringBuilder();
+            builder.Append("{\"content\":\"");
+            builder.Append(content.Replace("\"", ""));
+            builder.Append("\",\"phones\":[");
+
+            bool first = true;
+            foreach (var phone in numbers)
+            {
+                if (!first)
+                {
+                    builder.Append(",");
+                }
+
+                builder.Append("\"");
+                builder.Append(phone);
+                builder.Append("\"");
+
+                first = false;
+            }
+
+            builder.Append("]}");
+
+            return builder.ToString();
+        }
+    }
+}

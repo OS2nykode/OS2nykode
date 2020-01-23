@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" 
+    xmlns:tns="http://serviceplatformen.dk/xml/wsdl/soap11/CprService/2/"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+	xmlns="http://schemas.xmlsoap.org/wsdl/" 
+	targetNamespace="http://serviceplatformen.dk/xml/wsdl/soap11/CprService/2/"
+	name="CprLookupService">
+	<types>
+		<xsd:schema targetNamespace="http://serviceplatformen.dk/xml/wsdl/soap11/CprService/2/">
+			<xsd:include schemaLocation="CprLookupServiceMsg.xsd" />
+		</xsd:schema>
+	</types>
+
+	<message name="callGCTPServiceRequest">
+		<part name="request" element="tns:callGCTPCheckServiceRequest" />
+	</message>
+
+	<message name="callGCTPServiceResponse">
+		<part name="response" element="tns:callGCTPCheckServiceResponse" />
+	</message>
+	
+
+	<portType name="CprLookupServicePortType">
+		
+	<operation name="callGctpService">
+	<input message="tns:callGCTPServiceRequest" />
+	<output message="tns:callGCTPServiceResponse" />
+	</operation>
+	
+	</portType>
+
+	<binding name="CprBinding" type="tns:CprLookupServicePortType">
+		<soap:binding transport="http://schemas.xmlsoap.org/soap/http" style="document" />
+		
+		<operation name="callGctpService">
+		  	<soap:operation soapAction=""/>
+				<input>
+				<soap:body use="literal" />		 
+				</input>
+			<output>
+				<soap:body use="literal"/>
+			</output>
+		</operation>
+
+
+	</binding>
+
+	<service name="CprLookupService">
+		<port name="CprServicePort" binding="tns:CprBinding">
+			<soap:address location="http://localhost:8080/service/CPRLookup/CPRLookup/2" />
+		</port>
+	</service>
+</definitions>
