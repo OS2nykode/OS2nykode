@@ -11,12 +11,14 @@ import javax.naming.Name;
 import javax.naming.directory.BasicAttribute;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.ModificationItem;
+import javax.naming.directory.SearchControls;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.ldap.control.PagedResultsDirContextProcessor;
 import org.springframework.ldap.core.AttributesMapper;
 import org.springframework.ldap.core.DirContextOperations;
 import org.springframework.ldap.core.LdapTemplate;
@@ -38,18 +40,12 @@ public class LdapService {
 
 	@Autowired
 	private SMSService smsService;
-
-	@Value("${ldap.field.ssn}")
-	private String ssnField;
 	
+	@Value("${ldap.field.ssn:}")
+	private String ssnField;
+		
 	@Value("${ldap.field.mobile:}")
 	private String mobileField;
-	
-	@Value("${ldap.groups.cannotChangePwd}")
-	private String passwordChangePreventGroup;
-	
-	@Value("${ldap.groups.pwdCirclesOU}")
-	private String passwordChangeBaseOU;
 
 	public LdapService(@Value("${ldap.cert.trustall:false}") boolean trustAllCert) {
 		if (trustAllCert) {
@@ -154,42 +150,43 @@ public class LdapService {
 		
 		return result;
 	}
-	
+
 	public List<UserDTO> getMembers(String groupName) throws Exception {
 		List<UserDTO> result = new ArrayList<>();
 
-		List<DirContextOperations> ctxs = ldapTemplate.search(query()
-				.searchScope(SearchScope.SUBTREE)
-				.where("objectclass").is("person")
-				.and("memberOf:1.2.840.113556.1.4.1941:").is(groupName),
+		SearchControls searchControls = new SearchControls();
+		searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+		PagedResultsDirContextProcessor processor = new PagedResultsDirContextProcessor(500);
+
+		do {
+			List<DirContextOperations> ctxs = ldapTemplate.search(
+				"",
+				"(&(objectclass=person)(memberOf:1.2.840.113556.1.4.1941:=" + groupName + "))",
+				searchControls,
 				new AbstractContextMapper<DirContextOperations>() {
 
 					@Override
 					protected DirContextOperations doMapFromContext(DirContextOperations ctx) {
 						return ctx;
 					}
-				}
-		);
-		
-		if (ctxs != null && ctxs.size() > 0) {
-			for (DirContextOperations ctx : ctxs) {
-				String sAMAccountName = (String) ctx.getObjectAttribute("sAMAccountName");
-				String name = (String) ctx.getObjectAttribute("displayName");
+				},
+				processor);
 
-				UserDTO userDto = new UserDTO();
-				userDto.setName(name);
-				userDto.setSAMAccountName(sAMAccountName);
-				result.add(userDto);
+			if (ctxs != null && ctxs.size() > 0) {
+
+				for (DirContextOperations ctx : ctxs) {
+					String sAMAccountName = (String) ctx.getObjectAttribute("sAMAccountName");
+					String name = (String) ctx.getObjectAttribute("displayName");
+
+					UserDTO userDto = new UserDTO();
+					userDto.setName(name);
+					userDto.setSAMAccountName(sAMAccountName);
+					result.add(userDto);
+				}
 			}
-		}
+		} while (processor.hasMore());
 
 		return result;
-	}
-
-	public boolean isAllowedToChangePassword(String sAMAccountName) throws Exception {
-		List<String> groups = getGroups(sAMAccountName);
-
-		return !groups.contains(passwordChangePreventGroup.toLowerCase());
 	}
 
 	public UsernameAndPassword resetPassword(String sAMAccountName, String newPassword) throws Exception {

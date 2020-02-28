@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @Controller
 public class DefaultController {
@@ -24,5 +25,12 @@ public class DefaultController {
 		model.addAttribute("idpEnabled", idpEnabled);
 		
 		return "index";
+	}
+	
+	@GetMapping("/failed")
+	public String failed(Model model, @RequestParam(required = false, defaultValue = "", value = "cause") String cause) {
+		model.addAttribute("cause", cause);
+
+		return "failed";
 	}
 }

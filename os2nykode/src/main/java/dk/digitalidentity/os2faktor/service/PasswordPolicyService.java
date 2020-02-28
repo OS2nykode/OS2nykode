@@ -31,21 +31,23 @@ public class PasswordPolicyService {
 					combinedPolicy.setMaxLength(255);
 					boolean foundPolicy = false;
 
-					for (PasswordPolicy policy : passwordPolicyConfiguration.getPolicies()) {
-						if (groups.contains(policy.getGroupName().toLowerCase())) {
-							foundPolicy = true;
-							
-							combinedPolicy.setDigitsRequired(combinedPolicy.isDigitsRequired() || policy.isDigitsRequired());
-							combinedPolicy.setLettersRequired(combinedPolicy.isLettersRequired() || policy.isLettersRequired());
-							combinedPolicy.setSpecialCharactersRequired(combinedPolicy.isSpecialCharactersRequired() || policy.isSpecialCharactersRequired());
-							combinedPolicy.setUpperAndLowerCaseRequired(combinedPolicy.isUpperAndLowerCaseRequired() || policy.isUpperAndLowerCaseRequired());
-
-							if (policy.getMinLength() > combinedPolicy.getMinLength()) {
-								combinedPolicy.setMinLength(policy.getMinLength());
-							}
-							
-							if (policy.getMaxLength() < combinedPolicy.getMaxLength()) {
-								combinedPolicy.setMaxLength(policy.getMaxLength());
+					if (passwordPolicyConfiguration.getPolicies() != null) {
+						for (PasswordPolicy policy : passwordPolicyConfiguration.getPolicies()) {
+							if (groups.contains(policy.getGroupName().toLowerCase())) {
+								foundPolicy = true;
+								
+								combinedPolicy.setDigitsRequired(combinedPolicy.isDigitsRequired() || policy.isDigitsRequired());
+								combinedPolicy.setLettersRequired(combinedPolicy.isLettersRequired() || policy.isLettersRequired());
+								combinedPolicy.setSpecialCharactersRequired(combinedPolicy.isSpecialCharactersRequired() || policy.isSpecialCharactersRequired());
+								combinedPolicy.setUpperAndLowerCaseRequired(combinedPolicy.isUpperAndLowerCaseRequired() || policy.isUpperAndLowerCaseRequired());
+	
+								if (policy.getMinLength() > combinedPolicy.getMinLength()) {
+									combinedPolicy.setMinLength(policy.getMinLength());
+								}
+								
+								if (policy.getMaxLength() < combinedPolicy.getMaxLength()) {
+									combinedPolicy.setMaxLength(policy.getMaxLength());
+								}
 							}
 						}
 					}

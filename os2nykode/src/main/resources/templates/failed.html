@@ -30,21 +30,34 @@
 	<div class="pricing-header px-3 py-3 pt-md-5 pb-md-4 mx-auto">
 		<form>
 			<div class="form-horizontal">
-				<h2>Skift AD kodeord</h2>
+				<h2>Der opstod en fejl</h2>
 				<p>
-				Hvis du ønsker at skifte dit AD kodeord, kan du skifte det her. Du skal først gennemføre et login med en af nedenstående
-				login metoder, hvorefter du kan vælge et nyt kodeord.
+					Der er opstået en fejl i forbindelse med forsøg på at skifte kodeord. Årsagen er beskrevet nedenfor.
+					Prøv evt at logge på igen, og hvis den samme fejl opstår igen, kontakt din it-afdeling for assistance.
 				</p>
 
 				<br/>
 				
-				<a th:if="${nemIdEnabled == true}" th:href="@{/login/nemid}" class="btn btn-primary btn-lg btn-block">Login med NemID</a>
-				<a th:if="${uniLoginEnabled == true}" th:href="@{/login/unilogin}" class="btn btn-primary btn-lg btn-block">Login med UNI-Login</a>
-				<a th:if="${idpEnabled == true}" th:href="@{/login/idp}" class="btn btn-primary btn-lg btn-block">Login med AD</a>
+				<th:block th:switch="${cause}">
+					<p th:case="'NoAccount'">
+						Du har ikke adgang til at skifte kodeord på nogen AD konti. Der kan være flere årsager til dette, herunder
+						at din AD konto er spærret, at du ikke har en AD konto eller der er opsat en blokade for at du kan skifte kodeord
+						via denne selvbetjeningsløsning. Kontakt evt din it-afdeling for yderligere detaljer.
+					</p>
+					
+					<p th:case="'NoSSN'">
+						Det har ikke været muligt at parre din login-metode med en konkret AD konto. Hvis du er logget ind med NemID, er
+						det vigtigt at du bruger dit private NemID, og ikke en medarbejder-signatur. Hvis du er logget ind med en AD konto,
+						er denne AD konto muligvis opsat som en systemkonto og/eller administrator-konto, der ikke er koblet til dig som
+						medarbejder.
+					</p>
+					
+					<p th:case="'*'">
+						Årsagen er desværre ukendt. Kontakt din it-afdeling hvis et nyt forsøg ikke fungerer.
+					</p>
+				</th:block>
 			</div>
 		</form>
 	</div>
-
-	<script type="text/javascript" th:src="@{/libs/jquery/js/jquery-3.3.1.min.js}"></script>
 </body>
 </html>

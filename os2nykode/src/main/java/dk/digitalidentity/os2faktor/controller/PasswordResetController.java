@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.PostConstruct;
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 
@@ -31,6 +32,8 @@ import dk.digitalidentity.os2faktor.security.SecurityUtil;
 import dk.digitalidentity.os2faktor.service.ChildrenCprService;
 import dk.digitalidentity.os2faktor.service.LdapService;
 import dk.digitalidentity.os2faktor.service.PasswordPolicyService;
+import dk.digitalidentity.os2faktor.service.RESTService;
+import dk.digitalidentity.os2faktor.service.SQLService;
 import dk.digitalidentity.os2faktor.service.dto.UserDTO;
 import dk.digitalidentity.os2faktor.service.model.UsernameAndPassword;
 import dk.digitalidentity.os2faktor.util.Utilities;
@@ -42,6 +45,12 @@ public class PasswordResetController {
 
 	@Autowired
 	private LdapService ldapService;
+	
+	@Autowired
+	private SQLService sqlService;
+
+	@Autowired
+	private RESTService restService;
 
 	@Autowired
 	private PasswordValidator passwordValidator;
@@ -55,15 +64,39 @@ public class PasswordResetController {
 	@Autowired
 	private AuditLogService auditLogService;
 	
-	@Value("${ldap.groups.canChangeOthersPwd}")
-	private String passwordCanChangeGroup;
+	@Value("${ldap.base}")
+	private String ldapBase;
+
+	@Value("${ldap.groups.cannotChangePwd:}")
+	private String groupCannotChangePwd;
+
+	@Value("${ldap.groups.cannotBeChangedPwdOn:}")
+	private String groupCannotBeChangedPwdOn;
 	
-	@Value("${ldap.groups.pwdCirclesOU},${ldap.base}")
-	private String passwordGroupOUDN;
+	@Value("${ldap.groups.canChangeOthersPwd:}")
+	private String groupPasswordAdmins;
+	
+	@Value("${ldap.groups.masterPwdAdmins:}")
+	private String groupPasswordMasterAdmins;
+	
+	@Value("${ldap.groups.pwdCirclesOU:}")
+	private String passwordGroupsOU;
+
+	@Value("${ssn.lookup.method:AD}")
+	private String ssnLookupMethod;
 
 	@InitBinder("newPasswordForm")
 	public void initBinder(WebDataBinder binder) {
 		binder.addValidators(passwordValidator);
+	}
+	
+	@PostConstruct
+	public void passwordGroupOUDNFix() {
+		if (!StringUtils.isEmpty(passwordGroupsOU)) {
+			if (!passwordGroupsOU.toLowerCase().endsWith(ldapBase.toLowerCase())) {
+				passwordGroupsOU = passwordGroupsOU + "," + ldapBase;
+			}
+		}
 	}
 	
 	@GetMapping("/password/reset")
@@ -76,12 +109,37 @@ public class PasswordResetController {
 		String ssn = SecurityUtil.getSsn();
 		if (StringUtils.isEmpty(ssn)) {
 			log.warn("No SSN found on session!");
-			return "redirect:/";
+			return "redirect:/failed?cause=NoSSN";
+		}
+
+		// fetch ALL sAMAccountNames with that SSN associated with it
+		List<UserDTO> sAMAccountNames = new ArrayList<UserDTO>();
+		if ("AD".equals(ssnLookupMethod)) {
+			sAMAccountNames = ldapService.getSAMAccountNames(ssn);
+		}
+		else if ("SQL".equals(ssnLookupMethod)) {
+			sAMAccountNames = sqlService.getSAMAccountNames(ssn);
+		}
+		else if ("REST".equals(ssnLookupMethod)) {
+			sAMAccountNames = restService.getSAMAccountNames(ssn);
+		}
+
+		// check if any of the users accounts are prohibited from changing password
+		try {
+			for (UserDTO userDTO : sAMAccountNames) {
+				String sAMAccountName = userDTO.getSAMAccountName();
+
+				if (!isAllowedToChangePassword(sAMAccountName)) {
+					return "password/nopasswordchange";
+				}
+			}
+		}
+		catch (Exception ex) {
+			log.error("Failed to validate if user can change password:" + Utilities.maskSsn(ssn), ex);
+
+			return "password/error";
 		}
 		
-		// fetch ALL sAMAccountNames with that SSN associated with it
-		List<UserDTO> sAMAccountNames = ldapService.getSAMAccountNames(ssn);
-
 		// set the currently logged in user field in the session if needed (depending on how they logged in,
 		// it might not be set, and we need it for logging purposes - for those without an AD account, it gets
 		// set to their SSN, masked though)
@@ -111,36 +169,76 @@ public class PasswordResetController {
 		}
 
 		// if the user logged in using AD, see if they can change password on any other user
-		if (loggedInWithAD) {
+		if (loggedInWithAD && !StringUtils.isEmpty(passwordGroupsOU) && (!StringUtils.isEmpty(groupPasswordAdmins) || !StringUtils.isEmpty(groupPasswordMasterAdmins))) {
 			// find the groups that this user is a member of
 			List<String> groups = ldapService.getGroups((String) request.getSession().getAttribute(Constants.SESSION_CURRENTLY_LOGGEDIN_USER));
 
-			// if he/she is a member of the canChangeOtherUsersPasswords-group, allow it
-			if (groups.stream().anyMatch(g -> g.equalsIgnoreCase(passwordCanChangeGroup))) {
+			boolean canChangePasswordMasterAdmin = groups.stream().anyMatch(g -> g.equalsIgnoreCase(groupPasswordMasterAdmins));
+			boolean canChangePasswordAdmin = canChangePasswordMasterAdmin || groups.stream().anyMatch(g -> g.equalsIgnoreCase(groupPasswordAdmins));
+			
+			// who is the user allowed to change password on?
+			if (canChangePasswordAdmin) {
 	
 				// filter the users list of group memberships, so we only get the "password-circles" that the user is a member of
-				groups.removeIf(c -> c.toLowerCase().equals(passwordCanChangeGroup.toLowerCase()));
-				groups.removeIf(g -> !g.contains(passwordGroupOUDN.toLowerCase()));
+				if (!StringUtils.isEmpty(groupCannotBeChangedPwdOn)) {
+					groups.removeIf(c -> c.toLowerCase().equals(groupCannotBeChangedPwdOn.toLowerCase()));
+				}
+				if (!StringUtils.isEmpty(groupCannotChangePwd)) {
+					groups.removeIf(c -> c.toLowerCase().equals(groupCannotChangePwd.toLowerCase()));
+				}
+				if (!StringUtils.isEmpty(groupPasswordMasterAdmins)) {
+					groups.removeIf(c -> c.toLowerCase().equals(groupPasswordMasterAdmins.toLowerCase()));
+				}
+				if (!StringUtils.isEmpty(groupPasswordMasterAdmins)) {
+					groups.removeIf(g -> !g.toLowerCase().contains(passwordGroupsOU.toLowerCase()));
+				}
+				
+				groups.removeIf(g -> !g.toLowerCase().contains(passwordGroupsOU.toLowerCase()));
 
-				// finally find all password administrators (as it is not allowed to change password on those)
-				List<String> admins = ldapService.getMembers(passwordCanChangeGroup.toLowerCase()).stream().map(u -> u.getSAMAccountName()).collect(Collectors.toList());
+				if (groups.size() > 0) {
+					List<String> pwdResetProhibited = new ArrayList<>();
 	
-				// find all members of the password-circles that the user is a member of
-				for (String groupDN : groups) {
-					List<UserDTO> temp = ldapService.getMembers(groupDN);
+					// if the user is not a master-admin, do not allow changing password on admins
+					if (!canChangePasswordMasterAdmin) {
+						pwdResetProhibited.addAll(ldapService.getMembers(groupPasswordAdmins.toLowerCase())
+								.stream()
+								.map(u -> u.getSAMAccountName().toLowerCase())
+								.collect(Collectors.toList()));
+					}
+					
+					// no-one can change password on master-admins
+					if (!StringUtils.isEmpty(groupPasswordMasterAdmins)) {
+						pwdResetProhibited.addAll(ldapService.getMembers(groupPasswordMasterAdmins.toLowerCase())
+								.stream()
+								.map(u -> u.getSAMAccountName().toLowerCase())
+								.collect(Collectors.toList()));
+					}
 	
-					for (UserDTO member : temp) {
-						if (!admins.contains(member.getSAMAccountName())) {
-							boolean found = false;
-							for (UserDTO existing : othersDTOs) {
-								if (existing.getSAMAccountName().equals(member.getSAMAccountName())) {
-									found = true;
-									break;
+					// finally a list of user accounts no-one can change password on
+					if (!StringUtils.isEmpty(groupCannotBeChangedPwdOn)) {
+						pwdResetProhibited.addAll(ldapService.getMembers(groupCannotBeChangedPwdOn.toLowerCase())
+								.stream()
+								.map(u -> u.getSAMAccountName().toLowerCase())
+								.collect(Collectors.toList()));
+					}
+	
+					// find all members of the password-circles that the user is a member of
+					for (String groupDN : groups) {
+						List<UserDTO> temp = ldapService.getMembers(groupDN);
+	
+						for (UserDTO member : temp) {
+							if (!pwdResetProhibited.contains(member.getSAMAccountName().toLowerCase())) {
+								boolean found = false;
+								for (UserDTO existing : othersDTOs) {
+									if (existing.getSAMAccountName().equalsIgnoreCase(member.getSAMAccountName())) {
+										found = true;
+										break;
+									}
 								}
-							}
-							
-							if (!found) {
-								othersDTOs.add(member);
+								
+								if (!found) {
+									othersDTOs.add(member);
+								}
 							}
 						}
 					}
@@ -180,7 +278,7 @@ public class PasswordResetController {
 		
 		if (allAccounts.size() == 0) {
 			log.warn("User did not have any accounts to change password on");
-			return "redirect:/";
+			return "redirect:/failed?cause=NoAccount";
 		}
 
 		model.addAttribute("users", sAMAccountNames);
@@ -188,6 +286,16 @@ public class PasswordResetController {
 		model.addAttribute("logs", auditLogService.findByChangedAccountIn(allAccounts));
 
 		return "password/pickuser";
+	}
+
+	public boolean isAllowedToChangePassword(String sAMAccountName) throws Exception {
+		if (StringUtils.isEmpty(groupCannotChangePwd)) {
+			return true;
+		}
+
+		List<String> groups = ldapService.getGroups(sAMAccountName);
+
+		return !groups.contains(groupCannotChangePwd.toLowerCase());
 	}
 
 	@SuppressWarnings("unchecked")
@@ -213,28 +321,16 @@ public class PasswordResetController {
 
 			return "password/error";
 		}
+		
+		request.getSession().setAttribute(Constants.SESSION_SAMACCOUNTNAME, sAMAccountName);
+		model.addAttribute("newPasswordForm", new NewPasswordForm());
+		model.addAttribute("policy", passwordPolicyService.getCombinedPasswordPolicy());
 
-		try {
-			if (ldapService.isAllowedToChangePassword(sAMAccountName)) {
-				request.getSession().setAttribute(Constants.SESSION_SAMACCOUNTNAME, sAMAccountName);
-				model.addAttribute("newPasswordForm", new NewPasswordForm());
-				model.addAttribute("policy", passwordPolicyService.getCombinedPasswordPolicy());
-
-				if (badPassword) {
-					model.addAttribute("badPassword", true);
-				}
-
-				return "password/newPassword";
-			}
-			else {
-				return "password/nopasswordchange";
-			}
-		}
-		catch (Exception ex) {
-			log.error("Failed to validate if user can change password with sAMAccountName=" + sAMAccountName, ex);
+		if (badPassword) {
+			model.addAttribute("badPassword", true);
 		}
 
-		return "password/error";
+		return "password/newPassword";
 	}
 
 	@PostMapping(path = "/password/reset", consumes= "application/x-www-form-urlencoded;charset=UTF-8")
